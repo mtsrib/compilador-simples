@@ -81,7 +81,7 @@ callF returns [type]
 // Expressões artimeticas e booleanas
 expr returns [type]
     : exprArit #Expr_Arit
-    | exprBool  #Expr_Bool
+    | exprRel  #Expr_Rel
     ;
 
 exprArit returns [type]
@@ -103,35 +103,35 @@ fatorArit returns [type]
     | callF #ChamaFuncaoA
     ;
 
-exprBool returns [type]
-    : exprBool '||' exprBool2 #OrLogic
-    | exprBool2 #Expr_Bool2
+exprRel returns [type]
+    : exprRel '||' exprRel2 #OrLogic
+    | exprRel2 #Expr_Rel2
     ;
 
-exprBool2 returns [type]
-    : exprBool2 '&&' exprBool3 #AndLogic
-    | exprBool3 #Expr_Bool3
+exprRel2 returns [type]
+    : exprRel2 '&&' exprRel3 #AndLogic
+    | exprRel3 #Expr_Rel3
     ;
 
-exprBool3 returns [type]
+exprRel3 returns [type]
     : a=exprArit op=('>='|'<='|'>'|'<') b=exprArit #CompArit
-    | exprBool3  op=('>='|'<='|'>'|'<') termoBool #CompBool
-    | termoBool #Termo_Bool
+    | exprRel3  op=('>='|'<='|'>'|'<') termoRel #CompRel
+    | termoRel #Termo_Rel
     ;
 
-termoBool returns [type]
+termoRel returns [type]
     : a=exprArit op=('=='|'!=') b=exprArit #EqArit
-    | termoBool  op=('=='|'!=') fatorBool #EqBool
-    | fatorBool #Fator_Bool
+    | termoRel  op=('=='|'!=') fatorRel #EqRel
+    | fatorRel #Fator_Rel
     ;
 
-fatorBool returns [type]
-    : '(' exprBool ')' #ExprBoolParenteses
-    | '!' exprBool #Not
+fatorRel returns [type]
+    : '(' exprRel ')' #ExprRelParenteses
+    | '!' exprRel #Not
     | BOOL #Booleano
     | STR #String
-    | ID #IdentificadorB
-    | callF #ChamaFuncaoB
+    | ID #IdentificadorR
+    | callF #ChamaFuncaoR
     ;
 
 atribuicao: ID '=' expr ';';
@@ -141,10 +141,10 @@ print: 'print' '(' expr (',' expr)* ')' ';';
 
 input: 'input' '(' listaIds ')' ';';
 
-if: 'if' '(' exprBool ')' '{' comandos '}' else? ;
+if: 'if' '(' exprRel ')' '{' comandos '}' else? ;
 
 // if dentro de um comando de repetição
-ifRep: 'if' '(' exprBool ')' '{' comandosRep '}' elseRep? ;
+ifRep: 'if' '(' exprRel ')' '{' comandosRep '}' elseRep? ;
 
 else: 'else' '{' comandos '}';
 
@@ -152,7 +152,7 @@ else: 'else' '{' comandos '}';
 elseRep: 'else' '{' comandosRep '}';
 
 // Comandos de repetição
-for: 'for' '(' listaAtribFor ';' exprBool ';' incdec ')' '{' comandosRep '}';
+for: 'for' '(' listaAtribFor ';' exprRel ';' incdec ')' '{' comandosRep '}';
 
 listaAtribFor: atribFor (',' atribFor)*;
 
@@ -171,7 +171,7 @@ incdec: ID '=' ID op=('-'|'+') INT
 break: 'break' ';'
     ;
 
-while: 'while' '(' exprBool ')' '{' comandosRep '}'
+while: 'while' '(' exprRel ')' '{' comandosRep '}'
     ;
 
 return returns [retorno]

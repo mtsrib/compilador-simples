@@ -5,22 +5,36 @@ from gen.trabalhoFinalListener import trabalhoFinalListener
 
 # Definicao da classe MyListener para evitar sobreposicao durante a geracao do ANTLR
 class trabalhoFinalMyListener(trabalhoFinalListener):
+    symbolTable = {}
+    stack = []
+    reserved = ["'True'", "'False'", "'if'", "'else'", "'for'", "'while'", "'print'", "'input'", "'int'",
+                "'real'", "'String'", "'boolean'", "'main'", "'return'", "'break'", "'const'"]
 
-    # Enter a parse tree produced by trabalhoFinalParser#prog.
+    def numeric_type(self, vtype):  # verifica se é um tipo numério
+        return (vtype == 'int') or (vtype == 'real')
+
+    def active_function(self):
+        return 'function' in self.stack
+
+    # Enter a parse tree produced by projetoFinalParser#prog.
     def enterProg(self, ctx: trabalhoFinalParser.ProgContext):
         pass
 
     # Exit a parse tree produced by trabalhoFinalParser#prog.
     def exitProg(self, ctx: trabalhoFinalParser.ProgContext):
-        pass
-
-    # Enter a parse tree produced by trabalhoFinalParser#decVarConst.
-    def enterDecVarConst(self, ctx: trabalhoFinalParser.DecVarConstContext):
+        print(self.symbolTable)
         pass
 
     # Exit a parse tree produced by trabalhoFinalParser#decVarConst.
     def exitDecVarConst(self, ctx: trabalhoFinalParser.DecVarConstContext):
-        pass
+        if ctx.getChild(0) == "const":
+            tipo = ctx.tipo().getText()
+            atribs = ctx.listaAtrib().getText().split(',')
+            for atrib in atribs:
+                i = atrib().ID().lower()
+                self.symbolTable[i] = [tipo]
+        else:
+            ctx.decVar()
 
     # Enter a parse tree produced by trabalhoFinalParser#decVar.
     def enterDecVar(self, ctx: trabalhoFinalParser.DecVarContext):
@@ -28,7 +42,10 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#decVar.
     def exitDecVar(self, ctx: trabalhoFinalParser.DecVarContext):
-        pass
+        tipo = ctx.tipo().getText()
+        ids = ctx.listaIds().getText().lower().split(',')  # lista com todos os identificadores
+        for i in ids:
+            self.symbolTable[i] = [tipo]
 
     # Enter a parse tree produced by trabalhoFinalParser#tipo.
     def enterTipo(self, ctx: trabalhoFinalParser.TipoContext):
