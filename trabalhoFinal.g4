@@ -4,8 +4,10 @@ prog: decVarConst* decFunc* main
     ;
 
 decVarConst: decVar
-    | 'const' tipo listaAtrib ';'
+    | decConst
     ;
+
+decConst: 'const' tipo listaAtrib ';';
 
 decVar: tipo listaIds ';';
 
@@ -15,13 +17,12 @@ tipo: 'int'
     | 'String'
     ;
 
-listaIds: ID (',' ID)*
+listaIds returns [lista[]]
+    : ID (',' ID)*
     ;
 
-listaAtrib: atrib (',' atrib)*
-    ;
-
-atrib: ID '=' valor
+listaAtrib returns [listaids[], listatipos[]]
+    : ID '=' valor (',' ID '=' valor)*
     ;
 
 valor returns [type]
@@ -179,8 +180,8 @@ return returns [retorno]
     ;
 
 // Regras lexicas
-REAL: [0-9]+('.'[0-9]+)?; // interrogação quer dizer que é opcional
 INT: [0-9]+;
+REAL: [0-9]+('.'[0-9]+)?; // interrogação quer dizer que é opcional
 STR: '"' .*? '"'; // o ponto casa com qualquer caractere único
 BOOL: 'True' | 'False';
 ID: [a-zA-Z][a-zA-Z0-9]*;

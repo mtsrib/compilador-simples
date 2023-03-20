@@ -3,14 +3,16 @@ from gen.trabalhoFinalParser import trabalhoFinalParser
 from gen.trabalhoFinalListener import trabalhoFinalListener
 
 
-# Definicao da classe MyListener para evitar sobreposicao durante a geracao do ANTLR
+# Definicao da classe MyListener
 class trabalhoFinalMyListener(trabalhoFinalListener):
-    symbolTable = {}
+    symbolTable = {}  # ESTRUTURA DA TS {(ID, ESCOPO) : [TIPO, VALOR_CONSTANTE]}  ESCOPO = 0 (GLOGAL) ESCOPO = 1 (LOCAL)
+    f_args = {}
     stack = []
+    active_functions = []
     reserved = ["'True'", "'False'", "'if'", "'else'", "'for'", "'while'", "'print'", "'input'", "'int'",
                 "'real'", "'String'", "'boolean'", "'main'", "'return'", "'break'", "'const'"]
 
-    def numeric_type(self, vtype):  # verifica se é um tipo numério
+    def numeric_type(self, vtype):  # função que verifica se é um tipo numério
         return (vtype == 'int') or (vtype == 'real')
 
     def active_function(self):
@@ -23,18 +25,30 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     # Exit a parse tree produced by trabalhoFinalParser#prog.
     def exitProg(self, ctx: trabalhoFinalParser.ProgContext):
         print(self.symbolTable)
+
+    # Enter a parse tree produced by trabalhoFinalParser#decConst.
+    def enterDecConst(self, ctx: trabalhoFinalParser.DecConstContext):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#decVarConst.
-    def exitDecVarConst(self, ctx: trabalhoFinalParser.DecVarConstContext):
-        if ctx.getChild(0) == "const":
-            tipo = ctx.tipo().getText()
-            atribs = ctx.listaAtrib().getText().split(',')
-            for atrib in atribs:
-                i = atrib().ID().lower()
-                self.symbolTable[i] = [tipo]
-        else:
-            ctx.decVar()
+    # Exit a parse tree produced by trabalhoFinalParser#decConst.
+    def exitDecConst(self, ctx: trabalhoFinalParser.DecConstContext):
+        variaveis = ctx.listaAtrib().listaids
+        tipos = ctx.listaAtrib().listatipos
+
+        for var in variaveis:
+            self.symbolTable[(var, 0)][0] = ctx.tipo().getText()
+            if self.symbolTable[(var, 0)][1] in self.reserved:
+                print("Reserverd error.")
+
+        for i in range(len(variaveis)):
+            if ctx.tipo().getText() != tipos[i]:
+                print("Erro: O tipo da variável não é compatível com o seu valor.")
+
+        for var in variaveis:
+            if ctx.tipo().getText() == 'int':
+                self.symbolTable[(var, 0)][1] = int(self.symbolTable[(var, 0)][1])
+            elif ctx.tipo().getText() == 'real':
+                self.symbolTable[(var, 0)][1] = float(self.symbolTable[(var, 0)][1])
 
     # Enter a parse tree produced by trabalhoFinalParser#decVar.
     def enterDecVar(self, ctx: trabalhoFinalParser.DecVarContext):
@@ -42,18 +56,17 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#decVar.
     def exitDecVar(self, ctx: trabalhoFinalParser.DecVarContext):
-        tipo = ctx.tipo().getText()
-        ids = ctx.listaIds().getText().lower().split(',')  # lista com todos os identificadores
-        for i in ids:
-            self.symbolTable[i] = [tipo]
+        variaveis = ctx.listaIds().lista
 
-    # Enter a parse tree produced by trabalhoFinalParser#tipo.
-    def enterTipo(self, ctx: trabalhoFinalParser.TipoContext):
-        pass
-
-    # Exit a parse tree produced by trabalhoFinalParser#tipo.
-    def exitTipo(self, ctx: trabalhoFinalParser.TipoContext):
-        pass
+        # valor padrão das variáveis
+        for var in variaveis:
+            self.symbolTable[(var, 0)][0] = ctx.tipo().getText()
+            if ctx.tipo().getText() == 'String':
+                self.symbolTable[(var, 0)][1] = "''"
+            elif self.numeric_type(ctx.tipo().getText()):
+                self.symbolTable[(var, 0)][1] = 0
+            elif ctx.tipo().getText() == 'boolean':
+                self.symbolTable[var][1] = 'False'
 
     # Enter a parse tree produced by trabalhoFinalParser#listaIds.
     def enterListaIds(self, ctx: trabalhoFinalParser.ListaIdsContext):
@@ -61,7 +74,16 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#listaIds.
     def exitListaIds(self, ctx: trabalhoFinalParser.ListaIdsContext):
-        pass
+        ids = []
+        for token in ctx.ID():
+            if token.getText() in self.reserved:
+                print("Erro: palavra reservada não pode ser usada como nome de variável.")
+            if (token.getText(), 0) in self.symbolTable:
+                print('Erro: variável com mesmo nome já declarada.')
+            ids.append(token.getText())
+        for i in range(len(ids)):
+            self.symbolTable[(ctx.ID(i).getText(), 0)] = [None, None]
+        ctx.lista = ids
 
     # Enter a parse tree produced by trabalhoFinalParser#listaAtrib.
     def enterListaAtrib(self, ctx: trabalhoFinalParser.ListaAtribContext):
@@ -69,15 +91,22 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#listaAtrib.
     def exitListaAtrib(self, ctx: trabalhoFinalParser.ListaAtribContext):
-        pass
-
-    # Enter a parse tree produced by trabalhoFinalParser#atrib.
-    def enterAtrib(self, ctx: trabalhoFinalParser.AtribContext):
-        pass
-
-    # Exit a parse tree produced by trabalhoFinalParser#atrib.
-    def exitAtrib(self, ctx: trabalhoFinalParser.AtribContext):
-        pass
+        valores = []
+        tipos = []
+        ids = []
+        for valor in ctx.valor():
+            valores.append(valor.getText())  # lista de valores
+            tipos.append(valor.type)  # lista de tipos
+        for token in ctx.ID():
+            if (token.getText(), 0) in self.symbolTable:
+                print('Erro: variável com mesmo nome já declarada.')
+            if (token.getText(), 0) in self.reserved:
+                print('Erro: palavra reservada não pode ser usada como nome de variável.')
+            ids.append(token.getText())
+        for i in range(len(ids)):
+            self.symbolTable[(ctx.ID(i).getText(), 0)] = [None, valores[i]]
+        ctx.listaids = ids
+        ctx.listatipos = tipos
 
     # Enter a parse tree produced by trabalhoFinalParser#ValorInteiro.
     def enterValorInteiro(self, ctx: trabalhoFinalParser.ValorInteiroContext):
@@ -85,7 +114,11 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#ValorInteiro.
     def exitValorInteiro(self, ctx: trabalhoFinalParser.ValorInteiroContext):
-        pass
+        ctx.type = 'int'
+        if '-' in ctx.getText():
+            ctx.val = - int(ctx.INT().getText())
+        else:
+            ctx.val = int(ctx.INT().getText())
 
     # Enter a parse tree produced by trabalhoFinalParser#ValorReal.
     def enterValorReal(self, ctx: trabalhoFinalParser.ValorRealContext):
@@ -93,7 +126,11 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#ValorReal.
     def exitValorReal(self, ctx: trabalhoFinalParser.ValorRealContext):
-        pass
+        ctx.type = 'real'
+        if '-' in ctx.getText():
+            ctx.val = - float(ctx.REAL().getText())
+        else:
+            ctx.val = float(ctx.REAL().getText())
 
     # Enter a parse tree produced by trabalhoFinalParser#ValorString.
     def enterValorString(self, ctx: trabalhoFinalParser.ValorStringContext):
@@ -101,7 +138,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#ValorString.
     def exitValorString(self, ctx: trabalhoFinalParser.ValorStringContext):
-        pass
+        ctx.type = 'String'
+        ctx.val = ctx.STR().getText()
 
     # Enter a parse tree produced by trabalhoFinalParser#ValorBool.
     def enterValorBool(self, ctx: trabalhoFinalParser.ValorBoolContext):
@@ -109,7 +147,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#ValorBool.
     def exitValorBool(self, ctx: trabalhoFinalParser.ValorBoolContext):
-        pass
+        ctx.type = 'boolean'
+        ctx.val = ctx.BOOL().getText()
 
     # Enter a parse tree produced by trabalhoFinalParser#decFunc.
     def enterDecFunc(self, ctx: trabalhoFinalParser.DecFuncContext):
@@ -176,11 +215,11 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
         pass
 
     # Enter a parse tree produced by trabalhoFinalParser#Expr_Bool.
-    def enterExpr_Bool(self, ctx: trabalhoFinalParser.Expr_BoolContext):
+    def enterExpr_Rel(self, ctx: trabalhoFinalParser.Expr_RelContext):
         pass
 
     # Exit a parse tree produced by trabalhoFinalParser#Expr_Bool.
-    def exitExpr_Bool(self, ctx: trabalhoFinalParser.Expr_BoolContext):
+    def exitExpr_Rel(self, ctx: trabalhoFinalParser.Expr_RelContext):
         pass
 
     # Enter a parse tree produced by trabalhoFinalParser#Termo_Arit.
@@ -263,12 +302,12 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     def exitChamaFuncaoA(self, ctx: trabalhoFinalParser.ChamaFuncaoAContext):
         pass
 
-    # Enter a parse tree produced by trabalhoFinalParser#Expr_Bool2.
-    def enterExpr_Bool2(self, ctx: trabalhoFinalParser.Expr_Bool2Context):
+    # Enter a parse tree produced by trabalhoFinalParser#Expr_Rel2.
+    def enterExpr_Rel2(self, ctx: trabalhoFinalParser.Expr_Rel2Context):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#Expr_Bool2.
-    def exitExpr_Bool2(self, ctx: trabalhoFinalParser.Expr_Bool2Context):
+    # Exit a parse tree produced by trabalhoFinalParser#Expr_Rel2.
+    def exitExpr_Rel2(self, ctx: trabalhoFinalParser.Expr_Rel2Context):
         pass
 
     # Enter a parse tree produced by trabalhoFinalParser#OrLogic.
@@ -279,12 +318,12 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     def exitOrLogic(self, ctx: trabalhoFinalParser.OrLogicContext):
         pass
 
-    # Enter a parse tree produced by trabalhoFinalParser#Expr_Bool3.
-    def enterExpr_Bool3(self, ctx: trabalhoFinalParser.Expr_Bool3Context):
+    # Enter a parse tree produced by trabalhoFinalParser#Expr_Rel3.
+    def enterExpr_Rel3(self, ctx: trabalhoFinalParser.Expr_Rel3Context):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#Expr_Bool3.
-    def exitExpr_Bool3(self, ctx: trabalhoFinalParser.Expr_Bool3Context):
+    # Exit a parse tree produced by trabalhoFinalParser#Expr_Rel3.
+    def exitExpr_Rel3(self, ctx: trabalhoFinalParser.Expr_Rel3Context):
         pass
 
     # Enter a parse tree produced by trabalhoFinalParser#AndLogic.
@@ -295,12 +334,12 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     def exitAndLogic(self, ctx: trabalhoFinalParser.AndLogicContext):
         pass
 
-    # Enter a parse tree produced by trabalhoFinalParser#CompBool.
-    def enterCompBool(self, ctx: trabalhoFinalParser.CompBoolContext):
+    # Enter a parse tree produced by trabalhoFinalParser#CompRel.
+    def enterCompRel(self, ctx: trabalhoFinalParser.CompRelContext):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#CompBool.
-    def exitCompBool(self, ctx: trabalhoFinalParser.CompBoolContext):
+    # Exit a parse tree produced by trabalhoFinalParser#CompRel.
+    def exitCompRel(self, ctx: trabalhoFinalParser.CompRelContext):
         pass
 
     # Enter a parse tree produced by trabalhoFinalParser#CompArit.
@@ -311,28 +350,20 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     def exitCompArit(self, ctx: trabalhoFinalParser.CompAritContext):
         pass
 
-    # Enter a parse tree produced by trabalhoFinalParser#Termo_Bool.
-    def enterTermo_Bool(self, ctx: trabalhoFinalParser.Termo_BoolContext):
+    # Enter a parse tree produced by trabalhoFinalParser#Termo_Rel.
+    def enterTermo_Rel(self, ctx: trabalhoFinalParser.Termo_RelContext):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#Termo_Bool.
-    def exitTermo_Bool(self, ctx: trabalhoFinalParser.Termo_BoolContext):
+    # Exit a parse tree produced by trabalhoFinalParser#Termo_Rel.
+    def exitTermo_Rel(self, ctx: trabalhoFinalParser.Termo_RelContext):
         pass
 
-    # Enter a parse tree produced by trabalhoFinalParser#EqBool.
-    def enterEqBool(self, ctx: trabalhoFinalParser.EqBoolContext):
+    # Enter a parse tree produced by trabalhoFinalParser#EqRel.
+    def enterEqRel(self, ctx: trabalhoFinalParser.EqRelContext):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#EqBool.
-    def exitEqBool(self, ctx: trabalhoFinalParser.EqBoolContext):
-        pass
-
-    # Enter a parse tree produced by trabalhoFinalParser#Fator_Bool.
-    def enterFator_Bool(self, ctx: trabalhoFinalParser.Fator_BoolContext):
-        pass
-
-    # Exit a parse tree produced by trabalhoFinalParser#Fator_Bool.
-    def exitFator_Bool(self, ctx: trabalhoFinalParser.Fator_BoolContext):
+    # Exit a parse tree produced by trabalhoFinalParser#EqRel.
+    def exitEqRel(self, ctx: trabalhoFinalParser.EqRelContext):
         pass
 
     # Enter a parse tree produced by trabalhoFinalParser#EqArit.
@@ -343,12 +374,20 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     def exitEqArit(self, ctx: trabalhoFinalParser.EqAritContext):
         pass
 
-    # Enter a parse tree produced by trabalhoFinalParser#ExprBoolParenteses.
-    def enterExprBoolParenteses(self, ctx: trabalhoFinalParser.ExprBoolParentesesContext):
+    # Enter a parse tree produced by trabalhoFinalParser#Fator_Rel.
+    def enterFator_Rel(self, ctx: trabalhoFinalParser.Fator_RelContext):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#ExprBoolParenteses.
-    def exitExprBoolParenteses(self, ctx: trabalhoFinalParser.ExprBoolParentesesContext):
+    # Exit a parse tree produced by trabalhoFinalParser#Fator_Rel.
+    def exitFator_Rel(self, ctx: trabalhoFinalParser.Fator_RelContext):
+        pass
+
+    # Enter a parse tree produced by trabalhoFinalParser#ExprRelParenteses.
+    def enterExprRelParenteses(self, ctx: trabalhoFinalParser.ExprRelParentesesContext):
+        pass
+
+    # Exit a parse tree produced by trabalhoFinalParser#ExprRelParenteses.
+    def exitExprRelParenteses(self, ctx: trabalhoFinalParser.ExprRelParentesesContext):
         pass
 
     # Enter a parse tree produced by trabalhoFinalParser#Not.
@@ -375,20 +414,20 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     def exitString(self, ctx: trabalhoFinalParser.StringContext):
         pass
 
-    # Enter a parse tree produced by trabalhoFinalParser#IdentificadorB.
-    def enterIdentificadorB(self, ctx: trabalhoFinalParser.IdentificadorBContext):
+    # Enter a parse tree produced by trabalhoFinalParser#IdentificadorR.
+    def enterIdentificadorR(self, ctx: trabalhoFinalParser.IdentificadorRContext):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#IdentificadorB.
-    def exitIdentificadorB(self, ctx: trabalhoFinalParser.IdentificadorBContext):
+    # Exit a parse tree produced by trabalhoFinalParser#IdentificadorR.
+    def exitIdentificadorR(self, ctx: trabalhoFinalParser.IdentificadorRContext):
         pass
 
-    # Enter a parse tree produced by trabalhoFinalParser#ChamaFuncaoB.
-    def enterChamaFuncaoB(self, ctx: trabalhoFinalParser.ChamaFuncaoBContext):
+    # Enter a parse tree produced by trabalhoFinalParser#ChamaFuncaoR.
+    def enterChamaFuncaoR(self, ctx: trabalhoFinalParser.ChamaFuncaoRContext):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#ChamaFuncaoB.
-    def exitChamaFuncaoB(self, ctx: trabalhoFinalParser.ChamaFuncaoBContext):
+    # Exit a parse tree produced by trabalhoFinalParser#ChamaFuncaoR.
+    def exitChamaFuncaoR(self, ctx: trabalhoFinalParser.ChamaFuncaoRContext):
         pass
 
     # Enter a parse tree produced by trabalhoFinalParser#atribuicao.
