@@ -54,7 +54,7 @@ listaParams: tipo ID (',' tipo ID)*
     ;
 
 // Função principal
-main: 'main' '(' ')' '{' decVar* comandos '}'
+main: 'main' '(' ')' '{' decVarLocal* comandos '}'
     ;
 
 comandos: callF ';' comandos
@@ -102,7 +102,7 @@ termoArit returns [type]
     ;
 
 fatorArit returns [type]
-    : '(' expr ')' #ExprParenteses
+    : '(' exprArit ')' #ExprAritParenteses
     | '-' fatorArit #MenosUnario
     | REAL #Real
     | INT #Inteiro
@@ -134,7 +134,7 @@ termoRel returns [type]
 
 fatorRel returns [type]
     : '(' exprRel ')' #ExprRelParenteses
-    | '!' exprRel #Not
+    | '!' fatorRel #Not
     | BOOL #Booleano
     | STR #String
     | ID #IdentificadorR
@@ -146,7 +146,10 @@ atribuicao: ID '=' expr ';';
 // Funções nativas
 print: 'print' '(' expr (',' expr)* ')' ';';
 
-input: 'input' '(' listaIds ')' ';';
+input: 'input' '(' listaIdsPrint ')' ';';
+
+listaIdsPrint: ID (',' ID)*
+    ;
 
 if: 'if' '(' exprRel ')' '{' comandos '}' else? ;
 
@@ -159,16 +162,9 @@ else: 'else' '{' comandos '}';
 elseRep: 'else' '{' comandosRep '}';
 
 // Comandos de repetição
-for: 'for' '(' listaAtribFor ';' exprRel ';' incdec ')' '{' comandosRep '}';
+for: 'for' '(' atribFor ';' exprRel ';' incdec ')' '{' comandosRep '}';
 
-listaAtribFor: atribFor (',' atribFor)*;
-
-atribFor: ID '=' valorFor
-    ;
-
-valorFor returns [type]
-    : '-'? INT #ValorInteiroFor
-    | '-'? REAL #ValorRealFor
+atribFor: ID '=' valor
     ;
 
 incdec: ID '=' ID op=('-'|'+') INT

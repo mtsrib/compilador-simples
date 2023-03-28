@@ -6,7 +6,6 @@ from Error import *
 
 # Definicao da classe MyListener.
 class trabalhoFinalMyListener(trabalhoFinalListener):
-
     # tabela de símbolos glogal
     # {id : [tipo, valor]}
     symbolTable = {}
@@ -36,9 +35,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#prog.
     def exitProg(self, ctx: trabalhoFinalParser.ProgContext):
-        print("Tabela de símbolos")
+        print("\nTabela de símbolos")
         print(self.symbolTable)
-        print(self.f_args)
 
     # Enter a parse tree produced by trabalhoFinalParser#decVarConst.
     def enterDecVarConst(self, ctx: trabalhoFinalParser.DecVarConstContext):
@@ -210,6 +208,14 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
             else:
                 self.symbolTable[func_id] = [None, None]  # caso a função não tenha tipo
 
+
+        if self.numeric_type(self.symbolTable[func_id][0]):
+            self.symbolTable[func_id][1] = 0
+        elif self.symbolTable[func_id][0] == 'String':
+            self.symbolTable[func_id][1] = "''"
+        elif self.symbolTable[func_id][0] == 'boolean':
+            self.symbolTable[func_id][1] = 'False'
+
         tipos = []
         stream = ctx.listaParams().getText()
         splitstream = stream.split(",")
@@ -229,8 +235,7 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     def exitFunc_Type(self, ctx: trabalhoFinalParser.Func_TypeContext):
         self.stack.pop()  # retira da pilha de execução
         self.active_function.pop()  # retira da lista de função ativa
-        print(self.symbolTableLocal)
-        self.symbolTableLocal.clear()   # limpa o dicionário ao sair da função
+        self.symbolTableLocal.clear()  # limpa o dicionário ao sair da função
 
     # Enter a parse tree produced by trabalhoFinalParser#decVarLocal.
     def enterDecVarLocal(self, ctx: trabalhoFinalParser.DecVarLocalContext):
@@ -339,7 +344,7 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     # Enter a parse tree produced by trabalhoFinalParser#callF.
     def enterCallF(self, ctx: trabalhoFinalParser.CallFContext):
         id_name = ctx.ID().getText()
-        if id_name not in self.symbolTable:     # testa se o identificar da função não está na tabela de símbolos
+        if id_name not in self.symbolTable:  # testa se o identificar da função não está na tabela de símbolos
             raise UndeclaredFunction(ctx.start.line, id_name)
         else:
             pass
@@ -347,15 +352,17 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     # Exit a parse tree produced by trabalhoFinalParser#callF.
     def exitCallF(self, ctx: trabalhoFinalParser.CallFContext):
         fun_id = ctx.ID().getText()
-        if len(self.f_args[fun_id]) != len(ctx.expr()):  # testa se o número de argumentos passados é diferente do número de parâmetros formais
+        if len(self.f_args[fun_id]) != len(
+                ctx.expr()):  # testa se o número de argumentos passados é diferente do número de parâmetros formais
             raise MissingArguments(ctx.start.line, len(self.f_args[fun_id]), len(ctx.expr()))
         else:
-            for esperado, recebido in list(zip(self.f_args[fun_id], ctx.expr())):   # testa se os tipos dos parâmetros formais correspondem aos valores recebidos por argumento
+            for esperado, recebido in list(zip(self.f_args[fun_id],
+                                               ctx.expr())):  # testa se os tipos dos parâmetros formais correspondem aos valores recebidos por argumento
                 if esperado != recebido.type:
                     raise UnexpectedArgumentTypeError(ctx.start.line, esperado, recebido.type)
                 else:
                     ctx.type = self.symbolTable[ctx.ID().getText()][0]  # tipo da função
-                    ctx.val = self.symbolTable[ctx.ID().getText()][1]   # valor retornado pela função
+                    ctx.val = self.symbolTable[ctx.ID().getText()][1]  # valor retornado pela função
 
     # Enter a parse tree produced by trabalhoFinalParser#Expr_Arit.
     def enterExpr_Arit(self, ctx: trabalhoFinalParser.Expr_AritContext):
@@ -363,7 +370,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Expr_Arit.
     def exitExpr_Arit(self, ctx: trabalhoFinalParser.Expr_AritContext):
-        pass
+        ctx.type = ctx.exprArit().type
+        ctx.val = ctx.exprArit().val
 
     # Enter a parse tree produced by trabalhoFinalParser#Expr_Bool.
     def enterExpr_Rel(self, ctx: trabalhoFinalParser.Expr_RelContext):
@@ -371,7 +379,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Expr_Bool.
     def exitExpr_Rel(self, ctx: trabalhoFinalParser.Expr_RelContext):
-        pass
+        ctx.type = ctx.exprRel().type
+        ctx.val = ctx.exprRel().val
 
     # Enter a parse tree produced by trabalhoFinalParser#Termo_Arit.
     def enterTermo_Arit(self, ctx: trabalhoFinalParser.Termo_AritContext):
@@ -379,7 +388,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Termo_Arit.
     def exitTermo_Arit(self, ctx: trabalhoFinalParser.Termo_AritContext):
-        pass
+        ctx.type = ctx.termoArit().type
+        ctx.val = ctx.termoArit().val
 
     # Enter a parse tree produced by trabalhoFinalParser#SomaSub.
     def enterSomaSub(self, ctx: trabalhoFinalParser.SomaSubContext):
@@ -387,7 +397,29 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#SomaSub.
     def exitSomaSub(self, ctx: trabalhoFinalParser.SomaSubContext):
-        pass
+        if self.numeric_type(ctx.exprArit().type) and self.numeric_type(
+                ctx.termoArit().type):  # verifica se os dois operandos são numéricos
+            if ctx.exprArit().type == 'real' and ctx.termoArit().type == 'real':
+                ctx.type = 'real'
+                v1, v2 = ctx.exprArit().val, ctx.termoArit().val  # recebe os valores dos operanddos
+
+            elif ctx.exprArit().type == 'int' and ctx.termoArit().type == 'real':
+                ctx.type = 'real'  # conversão de alargamento
+                v1, v2 = float(ctx.exprArit().val), ctx.termoArit().val
+
+            elif ctx.exprArit().type == 'real' and ctx.termoArit().type == 'int':
+                ctx.type = 'real'
+                v1, v2 = ctx.exprArit().val, float(ctx.termoArit().val)
+            else:
+                ctx.type = 'int'
+                v1, v2 = ctx.exprArit().val, ctx.termoArit().val
+
+            if ctx.op.text == '+':
+                ctx.val = v1 + v2
+            else:
+                ctx.val = v1 - v2
+        else:
+            raise ExpressionTypeError(ctx.start.line, ctx.op.text, ctx.exprArit().type, ctx.termoArit().type)
 
     # Enter a parse tree produced by trabalhoFinalParser#Fator_Arit.
     def enterFator_Arit(self, ctx: trabalhoFinalParser.Fator_AritContext):
@@ -395,7 +427,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Fator_Arit.
     def exitFator_Arit(self, ctx: trabalhoFinalParser.Fator_AritContext):
-        pass
+        ctx.type = ctx.fatorArit().type
+        ctx.val = ctx.fatorArit().val
 
     # Enter a parse tree produced by trabalhoFinalParser#MultDiv.
     def enterMultDiv(self, ctx: trabalhoFinalParser.MultDivContext):
@@ -403,15 +436,37 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#MultDiv.
     def exitMultDiv(self, ctx: trabalhoFinalParser.MultDivContext):
+        if self.numeric_type(ctx.termoArit().type) and self.numeric_type(ctx.fatorArit().type):
+            if ctx.termoArit().type == 'real' and ctx.fatorArit().type == 'real':
+                ctx.type = 'real'
+                v1, v2 = ctx.termoArit().val, ctx.fatorArit().val
+
+            elif ctx.termoArit().type == 'int' and ctx.fatorArit().type == 'real':
+                ctx.type = 'real'
+                v1, v2 = float(ctx.termoArit().val), ctx.fatorArit().val
+
+            elif ctx.termoArit().type == 'real' and ctx.fatorArit().type == 'int':
+                ctx.type = 'real'
+                v1, v2 = ctx.termoArit().val, float(ctx.fatorArit().val)
+            else:
+                ctx.type = 'int'
+                v1, v2 = ctx.termoArit().val, ctx.fatorArit().val
+
+            if ctx.op.text == '*':
+                ctx.val = v1 * v2
+            else:
+                ctx.val = v1/v2
+        else:
+            raise ExpressionTypeError(ctx.start.line, ctx.op.text, ctx.termoArit().type, ctx.fatorArit().type)
+
+    # Enter a parse tree produced by trabalhoFinalParser#ExprAritParenteses.
+    def enterExprAritParenteses(self, ctx: trabalhoFinalParser.ExprAritParentesesContext):
         pass
 
-    # Enter a parse tree produced by trabalhoFinalParser#ExprParenteses.
-    def enterExprParenteses(self, ctx: trabalhoFinalParser.ExprParentesesContext):
-        pass
-
-    # Exit a parse tree produced by trabalhoFinalParser#ExprParenteses.
-    def exitExprParenteses(self, ctx: trabalhoFinalParser.ExprParentesesContext):
-        pass
+    # Exit a parse tree produced by trabalhoFinalParser#ExprAritParenteses.
+    def exitExprAritParenteses(self, ctx: trabalhoFinalParser.ExprAritParentesesContext):
+        ctx.type = ctx.exprArit().type
+        ctx.val = ctx.exprArit().val
 
     # Enter a parse tree produced by trabalhoFinalParser#MenosUnario.
     def enterMenosUnario(self, ctx: trabalhoFinalParser.MenosUnarioContext):
@@ -419,7 +474,11 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#MenosUnario.
     def exitMenosUnario(self, ctx: trabalhoFinalParser.MenosUnarioContext):
-        pass
+        if self.numeric_type(ctx.fatorArit().type):
+            ctx.type = ctx.fatorArit().type
+            ctx.val = - ctx.fatorArit().val
+        else:
+            raise ExpressionTypeError(ctx.start.line, '- unário', ctx.fatorArit().type, None)
 
     # Enter a parse tree produced by trabalhoFinalParser#Real.
     def enterReal(self, ctx: trabalhoFinalParser.RealContext):
@@ -427,7 +486,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Real.
     def exitReal(self, ctx: trabalhoFinalParser.RealContext):
-        pass
+        ctx.type = 'real'
+        ctx.val = float(ctx.REAL().getText())
 
     # Enter a parse tree produced by trabalhoFinalParser#Inteiro.
     def enterInteiro(self, ctx: trabalhoFinalParser.InteiroContext):
@@ -435,7 +495,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Inteiro.
     def exitInteiro(self, ctx: trabalhoFinalParser.InteiroContext):
-        pass
+        ctx.type = 'int'
+        ctx.val = int(ctx.INT().getText())
 
     # Enter a parse tree produced by trabalhoFinalParser#IdentificadorA.
     def enterIdentificadorA(self, ctx: trabalhoFinalParser.IdentificadorAContext):
@@ -443,7 +504,16 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#IdentificadorA.
     def exitIdentificadorA(self, ctx: trabalhoFinalParser.IdentificadorAContext):
-        pass
+        id_name = ctx.ID().getText()
+
+        if id_name in self.symbolTableLocal:  # verifica se o identificador foi declarado localmente
+            ctx.type = self.symbolTableLocal[id_name][0]
+            ctx.val = self.symbolTableLocal[id_name][1]
+        elif id_name in self.symbolTable:  # verifica de foi declarado globalmente
+            ctx.type = self.symbolTable[id_name][0]
+            ctx.val = self.symbolTable[id_name][1]
+        else:
+            raise UndeclaredVariable(ctx.start.line, id_name)  # gera erro de variável não declarada
 
     # Enter a parse tree produced by trabalhoFinalParser#ChamaFuncaoA.
     def enterChamaFuncaoA(self, ctx: trabalhoFinalParser.ChamaFuncaoAContext):
@@ -451,7 +521,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#ChamaFuncaoA.
     def exitChamaFuncaoA(self, ctx: trabalhoFinalParser.ChamaFuncaoAContext):
-        pass
+        ctx.type = ctx.callF().type
+        ctx.val = ctx.callF().val
 
     # Enter a parse tree produced by trabalhoFinalParser#Expr_Rel2.
     def enterExpr_Rel2(self, ctx: trabalhoFinalParser.Expr_Rel2Context):
@@ -459,7 +530,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Expr_Rel2.
     def exitExpr_Rel2(self, ctx: trabalhoFinalParser.Expr_Rel2Context):
-        pass
+        ctx.type = ctx.exprRel2().type
+        ctx.val = ctx.exprRel2().val
 
     # Enter a parse tree produced by trabalhoFinalParser#OrLogic.
     def enterOrLogic(self, ctx: trabalhoFinalParser.OrLogicContext):
@@ -467,7 +539,11 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#OrLogic.
     def exitOrLogic(self, ctx: trabalhoFinalParser.OrLogicContext):
-        pass
+        if ctx.exprRel().type == 'boolean' and ctx.exprRel2().type == 'boolean':
+            ctx.type = 'boolean'
+            ctx.val = 'True' if ctx.exprRel().val or ctx.exprRel2().val else 'False'
+        else:
+            raise ExpressionTypeError(ctx.start.line, 'OR', ctx.exprRel().type, ctx.exprRel2().type)
 
     # Enter a parse tree produced by trabalhoFinalParser#Expr_Rel3.
     def enterExpr_Rel3(self, ctx: trabalhoFinalParser.Expr_Rel3Context):
@@ -475,7 +551,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Expr_Rel3.
     def exitExpr_Rel3(self, ctx: trabalhoFinalParser.Expr_Rel3Context):
-        pass
+        ctx.type = ctx.exprRel3().type
+        ctx.val = ctx.exprRel3().val
 
     # Enter a parse tree produced by trabalhoFinalParser#AndLogic.
     def enterAndLogic(self, ctx: trabalhoFinalParser.AndLogicContext):
@@ -483,7 +560,11 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#AndLogic.
     def exitAndLogic(self, ctx: trabalhoFinalParser.AndLogicContext):
-        pass
+        if ctx.exprRel2().type == 'boolean' and ctx.exprRel3().type == 'boolean':
+            ctx.type = 'boolean'
+            ctx.val = 'True' if ctx.exprRel2().val and ctx.expRel3().val else 'False'
+        else:
+            raise ExpressionTypeError(ctx.start.line, 'AND', ctx.exprRel2().type, ctx.termoRel().type)
 
     # Enter a parse tree produced by trabalhoFinalParser#CompRel.
     def enterCompRel(self, ctx: trabalhoFinalParser.CompRelContext):
@@ -491,7 +572,18 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#CompRel.
     def exitCompRel(self, ctx: trabalhoFinalParser.CompRelContext):
-        pass
+        if ctx.exprRel3().type == 'String' and ctx.termoRel().type == 'String':
+            ctx.type = 'boolean'
+            if ctx.op.text == '>':
+                ctx.val = 'True' if len(ctx.exprRel3().val) > len(ctx.termoRel().val) else 'False'
+            elif ctx.op.text == '<':
+                ctx.val = 'True' if len(ctx.exprRel3().val) < len(ctx.termoRel().val) else 'False'
+            elif ctx.op.text == '>=':
+                ctx.val = 'True' if len(ctx.exprRel3().val) >= len(ctx.termoRel().val) else 'False'
+            elif ctx.op.text == '<=':
+                ctx.val = 'True' if len(ctx.exprRel3().val) <= len(ctx.termoRel().val) else 'False'
+        else:
+            raise ExpressionTypeError(ctx.start.line, ctx.op.text, ctx.termoRel().type, ctx.fatorRel().type)
 
     # Enter a parse tree produced by trabalhoFinalParser#CompArit.
     def enterCompArit(self, ctx: trabalhoFinalParser.CompAritContext):
@@ -499,7 +591,18 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#CompArit.
     def exitCompArit(self, ctx: trabalhoFinalParser.CompAritContext):
-        pass
+        if self.numeric_type(ctx.a.type) and self.numeric_type(ctx.b.type):
+            ctx.type = 'boolean'
+            if ctx.op.text == '>':
+                ctx.val = 'True' if ctx.a.val > ctx.b.val else 'False'
+            elif ctx.op.text == '<':
+                ctx.val = 'True' if ctx.a.val < ctx.b.val else 'False'
+            elif ctx.op.text == '>=':
+                ctx.val = 'True' if ctx.a.val >= ctx.b.val else 'False'
+            elif ctx.op.text == '<=':
+                ctx.val = 'True' if ctx.a.val <= ctx.b.val else 'False'
+        else:
+            raise ExpressionTypeError(ctx.start.line, ctx.op.text, ctx.a.type, ctx.b.type)
 
     # Enter a parse tree produced by trabalhoFinalParser#Termo_Rel.
     def enterTermo_Rel(self, ctx: trabalhoFinalParser.Termo_RelContext):
@@ -507,7 +610,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Termo_Rel.
     def exitTermo_Rel(self, ctx: trabalhoFinalParser.Termo_RelContext):
-        pass
+        ctx.type = ctx.termoRel().type
+        ctx.val = ctx.termoRel().val
 
     # Enter a parse tree produced by trabalhoFinalParser#EqRel.
     def enterEqRel(self, ctx: trabalhoFinalParser.EqRelContext):
@@ -515,7 +619,15 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#EqRel.
     def exitEqRel(self, ctx: trabalhoFinalParser.EqRelContext):
-        pass
+        if (ctx.termoRel().type == 'boolean' and ctx.fatorRel().type == 'boolean') or \
+                (ctx.termoRel().type == 'String' and ctx.fatorRel().type == 'String'):
+            ctx.type = 'boolean'
+            if ctx.op.text == '==':
+                ctx.val = 'True' if ctx.termoRel().val == ctx.fatorRel().val else 'False'
+            elif ctx.op.text == '!=':
+                ctx.val = 'False' if ctx.termoRel().val == ctx.fatorRel().val else 'True'
+        else:
+            raise ExpressionTypeError(ctx.start.line, ctx.op.text, ctx.superExprRel().type, ctx.exprRel().type)
 
     # Enter a parse tree produced by trabalhoFinalParser#EqArit.
     def enterEqArit(self, ctx: trabalhoFinalParser.EqAritContext):
@@ -523,7 +635,12 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#EqArit.
     def exitEqArit(self, ctx: trabalhoFinalParser.EqAritContext):
-        pass
+        if self.numeric_type(ctx.a.type) and self.numeric_type(ctx.b.type):
+            ctx.type = 'boolean'
+            if ctx.op.text == '==':
+                ctx.val = 'True' if ctx.a.val == ctx.b.val else 'False'
+            elif ctx.op.text == '!=':
+                ctx.val = 'False' if ctx.a.val == ctx.b.val else 'True'
 
     # Enter a parse tree produced by trabalhoFinalParser#Fator_Rel.
     def enterFator_Rel(self, ctx: trabalhoFinalParser.Fator_RelContext):
@@ -531,7 +648,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Fator_Rel.
     def exitFator_Rel(self, ctx: trabalhoFinalParser.Fator_RelContext):
-        pass
+        ctx.type = ctx.fatorRel().type
+        ctx.val = ctx.fatorRel().val
 
     # Enter a parse tree produced by trabalhoFinalParser#ExprRelParenteses.
     def enterExprRelParenteses(self, ctx: trabalhoFinalParser.ExprRelParentesesContext):
@@ -539,7 +657,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#ExprRelParenteses.
     def exitExprRelParenteses(self, ctx: trabalhoFinalParser.ExprRelParentesesContext):
-        pass
+        ctx.type = ctx.exprRel().type
+        ctx.val = ctx.exprRel().val
 
     # Enter a parse tree produced by trabalhoFinalParser#Not.
     def enterNot(self, ctx: trabalhoFinalParser.NotContext):
@@ -547,7 +666,11 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Not.
     def exitNot(self, ctx: trabalhoFinalParser.NotContext):
-        pass
+        if ctx.fatorRel().type == 'boolean':
+            ctx.type = 'boolean'
+            ctx.val = not ctx.fatorRel().val
+        else:
+            raise ExpressionTypeError(ctx.start.line, '! (not)', ctx.termoRel().type, None)
 
     # Enter a parse tree produced by trabalhoFinalParser#Booleano.
     def enterBooleano(self, ctx: trabalhoFinalParser.BooleanoContext):
@@ -555,7 +678,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#Booleano.
     def exitBooleano(self, ctx: trabalhoFinalParser.BooleanoContext):
-        pass
+        ctx.type = 'boolean'
+        ctx.val = 0 if ctx.getText() == 'False' else 1
 
     # Enter a parse tree produced by trabalhoFinalParser#String.
     def enterString(self, ctx: trabalhoFinalParser.StringContext):
@@ -563,7 +687,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#String.
     def exitString(self, ctx: trabalhoFinalParser.StringContext):
-        pass
+        ctx.type = 'String'
+        ctx.val = ctx.getText()
 
     # Enter a parse tree produced by trabalhoFinalParser#IdentificadorR.
     def enterIdentificadorR(self, ctx: trabalhoFinalParser.IdentificadorRContext):
@@ -571,7 +696,16 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#IdentificadorR.
     def exitIdentificadorR(self, ctx: trabalhoFinalParser.IdentificadorRContext):
-        pass
+        id_name = ctx.ID().getText()
+
+        if id_name in self.symbolTableLocal:  # verifica se o identificador foi declarado localmente
+            ctx.type = self.symbolTableLocal[id_name][0]
+            ctx.val = self.symbolTableLocal[id_name][1]
+        elif id_name in self.symbolTable:  # verifica de foi declarado globalmente
+            ctx.type = self.symbolTable[id_name][0]
+            ctx.val = self.symbolTable[id_name][1]
+        else:
+            raise UndeclaredVariable(ctx.start.line, id_name)  # gera erro de variável não declarada
 
     # Enter a parse tree produced by trabalhoFinalParser#ChamaFuncaoR.
     def enterChamaFuncaoR(self, ctx: trabalhoFinalParser.ChamaFuncaoRContext):
@@ -579,7 +713,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#ChamaFuncaoR.
     def exitChamaFuncaoR(self, ctx: trabalhoFinalParser.ChamaFuncaoRContext):
-        pass
+        ctx.type = ctx.callF().type
+        ctx.val = ctx.callF().val
 
     # Enter a parse tree produced by trabalhoFinalParser#atribuicao.
     def enterAtribuicao(self, ctx: trabalhoFinalParser.AtribuicaoContext):
@@ -587,7 +722,24 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#atribuicao.
     def exitAtribuicao(self, ctx: trabalhoFinalParser.AtribuicaoContext):
-        pass
+        id_name = ctx.ID().getText()
+
+        if id_name in self.symbolTableLocal:
+            esperado = self.symbolTableLocal[id_name][0]  # tipo esperaddo
+            recebido = ctx.expr().type  # tipo recebido
+            if esperado != recebido:
+                raise UnexpectedTypeError(ctx.start.line, esperado, recebido)
+            else:
+                self.symbolTableLocal[id_name][1] = ctx.expr().val
+        elif id_name in self.symbolTable:
+            esperado = self.symbolTable[id_name][0]  # tipo esperaddo
+            recebido = ctx.expr().type  # tipo recebido
+            if esperado != recebido:
+                raise UnexpectedTypeError(ctx.start.line, esperado, recebido)
+            else:
+                self.symbolTable[id_name][1] = ctx.expr().val
+        else:
+            raise UndeclaredVariable(ctx.start.line, id_name)
 
     # Enter a parse tree produced by trabalhoFinalParser#print.
     def enterPrint(self, ctx: trabalhoFinalParser.PrintContext):
@@ -595,7 +747,13 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#print.
     def exitPrint(self, ctx: trabalhoFinalParser.PrintContext):
-        pass
+        listaexpr = ''
+        for expr in ctx.expr():
+            if expr.type == 'String' and '"' in expr.val:
+                val = expr.val
+                expr.val = val.replace('"', '')  # retira as aspas duplas da string
+            listaexpr += str(expr.val)
+        print(listaexpr)
 
     # Enter a parse tree produced by trabalhoFinalParser#input.
     def enterInput(self, ctx: trabalhoFinalParser.InputContext):
@@ -603,6 +761,19 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#input.
     def exitInput(self, ctx: trabalhoFinalParser.InputContext):
+        strlistaIds = ctx.listaIdsPrint().getText()
+        id_names = strlistaIds.split(',')
+
+        for id_name in id_names:
+            if id_name not in self.symbolTable and id_name not in self.symbolTableLocal:
+                raise UndeclaredVariable(ctx.start.line, id_name)
+
+    # Enter a parse tree produced by trabalhoFinalParser#listaIdsPrint.
+    def enterListaIdsPrint(self, ctx: trabalhoFinalParser.ListaIdsPrintContext):
+        pass
+
+    # Exit a parse tree produced by trabalhoFinalParser#listaIdsPrint.
+    def exitListaIdsPrint(self, ctx: trabalhoFinalParser.ListaIdsPrintContext):
         pass
 
     # Enter a parse tree produced by trabalhoFinalParser#if.
@@ -611,7 +782,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#if.
     def exitIf(self, ctx: trabalhoFinalParser.IfContext):
-        pass
+        if ctx.exprRel().type != 'boolean':
+            raise UnexpectedTypeError(ctx.start.line, 'boolean', ctx.exprRel().type)
 
     # Enter a parse tree produced by trabalhoFinalParser#ifRep.
     def enterIfRep(self, ctx: trabalhoFinalParser.IfRepContext):
@@ -619,7 +791,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#ifRep.
     def exitIfRep(self, ctx: trabalhoFinalParser.IfRepContext):
-        pass
+        if ctx.exprRel().type != 'boolean':
+            raise UnexpectedTypeError(ctx.start.line, 'boolean', ctx.exprRel().type)
 
     # Enter a parse tree produced by trabalhoFinalParser#else.
     def enterElse(self, ctx: trabalhoFinalParser.ElseContext):
@@ -639,19 +812,24 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Enter a parse tree produced by trabalhoFinalParser#for.
     def enterFor(self, ctx: trabalhoFinalParser.ForContext):
-        pass
+        atrib = ctx.atribFor().getText()
+        lista = atrib.split('=')
+        ctx_id = lista[0]
+
+        if ctx_id in self.symbolTableLocal:
+            if not self.numeric_type(self.symbolTableLocal[ctx_id][0]):
+                raise UnexpectedTypeError(ctx.start.line, 'int', self.symbolTableLocal[ctx_id][0])
+        elif ctx_id in self.symbolTable:
+            if not self.numeric_type(self.symbolTable[ctx_id][0]):
+                raise UnexpectedTypeError(ctx.start.line, 'int', self.symbolTable[ctx_id][0])
+        else:
+            raise UndeclaredVariable(ctx.start.line, ctx_id)
+
+        self.stack.append('loop')
 
     # Exit a parse tree produced by trabalhoFinalParser#for.
     def exitFor(self, ctx: trabalhoFinalParser.ForContext):
-        pass
-
-    # Enter a parse tree produced by trabalhoFinalParser#listaAtribFor.
-    def enterListaAtribFor(self, ctx: trabalhoFinalParser.ListaAtribForContext):
-        pass
-
-    # Exit a parse tree produced by trabalhoFinalParser#listaAtribFor.
-    def exitListaAtribFor(self, ctx: trabalhoFinalParser.ListaAtribForContext):
-        pass
+        self.stack.pop()
 
     # Enter a parse tree produced by trabalhoFinalParser#atribFor.
     def enterAtribFor(self, ctx: trabalhoFinalParser.AtribForContext):
@@ -659,22 +837,6 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#atribFor.
     def exitAtribFor(self, ctx: trabalhoFinalParser.AtribForContext):
-        pass
-
-    # Enter a parse tree produced by trabalhoFinalParser#ValorInteiroFor.
-    def enterValorInteiroFor(self, ctx: trabalhoFinalParser.ValorInteiroForContext):
-        pass
-
-    # Exit a parse tree produced by trabalhoFinalParser#ValorInteiroFor.
-    def exitValorInteiroFor(self, ctx: trabalhoFinalParser.ValorInteiroForContext):
-        pass
-
-    # Enter a parse tree produced by trabalhoFinalParser#ValorRealFor.
-    def enterValorRealFor(self, ctx: trabalhoFinalParser.ValorRealForContext):
-        pass
-
-    # Exit a parse tree produced by trabalhoFinalParser#ValorRealFor.
-    def exitValorRealFor(self, ctx: trabalhoFinalParser.ValorRealForContext):
         pass
 
     # Enter a parse tree produced by trabalhoFinalParser#incdec.
@@ -687,7 +849,8 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Enter a parse tree produced by trabalhoFinalParser#break.
     def enterBreak(self, ctx: trabalhoFinalParser.BreakContext):
-        pass
+        if 'loop' not in self.stack:
+            raise UnexpectedBreak(ctx.start.line)
 
     # Exit a parse tree produced by trabalhoFinalParser#break.
     def exitBreak(self, ctx: trabalhoFinalParser.BreakContext):
@@ -695,19 +858,27 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Enter a parse tree produced by trabalhoFinalParser#while.
     def enterWhile(self, ctx: trabalhoFinalParser.WhileContext):
-        pass
+        self.stack.append('loop')
 
     # Exit a parse tree produced by trabalhoFinalParser#while.
     def exitWhile(self, ctx: trabalhoFinalParser.WhileContext):
-        pass
+        if ctx.exprRel().type != 'boolean':
+            raise UnexpectedTypeError(ctx.start.line, 'boolean', ctx.exprRel().type)
+        self.stack.pop()
 
     # Enter a parse tree produced by trabalhoFinalParser#return.
     def enterReturn(self, ctx: trabalhoFinalParser.ReturnContext):
-        pass
+        if not self._active_function():  # se não há uma função ativa
+            raise UnexpectedReturn(ctx.start.line)
 
     # Exit a parse tree produced by trabalhoFinalParser#return.
     def exitReturn(self, ctx: trabalhoFinalParser.ReturnContext):
-        pass
+        tipoEsperado = self.symbolTable[self.active_function[-1]][0]
+        if ctx.expr():
+            if ctx.expr().type != tipoEsperado:
+                raise UnexpectedReturnTypeError(ctx.start.line, tipoEsperado, ctx.expr().type)
+        ctx.retorno = ctx.expr().val
+        self.symbolTable[self.active_function[-1]][1] = ctx.retorno
 
 
 del trabalhoFinalParser

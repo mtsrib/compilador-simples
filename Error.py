@@ -1,7 +1,7 @@
 class ExpressionTypeError(Exception):
     def __init__(self, line, op, type1, type2):
         if type2 is not None:
-            msg = 'line {}: Operação {} não suportada para tipos {} e {}'.format(line, op, type1, type2)
+            msg = 'line {}: Operação {} não suportada para os tipos {} e {}'.format(line, op, type1, type2)
         else:
             msg = 'line {}: Operação {} não suportada para o tipo {}'.format(line, op, type1)
         super().__init__(msg)
@@ -9,7 +9,7 @@ class ExpressionTypeError(Exception):
 
 class UndeclaredVariable(Exception):
     def __init__(self, line, name):
-        msg = 'line {}: Variável {} não declarada'. format(line, name)
+        msg = 'line {}: Variável {} não foi declarada'. format(line, name)
         super().__init__(msg)
 
 
