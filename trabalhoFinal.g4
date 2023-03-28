@@ -33,7 +33,13 @@ valor returns [type]
     ;
 
 // Declaração de função
-decFunc: tipoFun ID '(' listaParams ')' '{' decVar* comandos '}'
+decFunc: tipoFun ID '(' listaParams ')' '{' decVarLocal* comandos '}' #Func_Type
+    ;
+
+decVarLocal: tipo listaIdsLocal ';';
+
+listaIdsLocal returns [lista[]]
+    : ID (',' ID)*
     ;
 
 tipoFun: 'int'

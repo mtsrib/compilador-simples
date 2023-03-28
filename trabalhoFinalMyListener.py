@@ -1,21 +1,33 @@
 from antlr4 import *
 from gen.trabalhoFinalParser import trabalhoFinalParser
 from gen.trabalhoFinalListener import trabalhoFinalListener
+from Error import *
 
 
-# Definicao da classe MyListener
+# Definicao da classe MyListener.
 class trabalhoFinalMyListener(trabalhoFinalListener):
-    symbolTable = {}  # ESTRUTURA DA TS {(ID, ESCOPO) : [TIPO, VALOR_CONSTANTE]}  ESCOPO = 0 (GLOGAL) ESCOPO = 1 (LOCAL)
+
+    # tabela de símbolos glogal
+    # {id : [tipo, valor]}
+    symbolTable = {}
+
+    # tabela de símbolos local
+    # {id : [tipo, valor]}
+    symbolTableLocal = {}
+
+    # O dicionário abaixo guarda os identificadores das funções e os tipos dos parâmetros formais da função
+    # {id_func : [tipos]}
     f_args = {}
+
     stack = []
-    active_functions = []
+    active_function = []
     reserved = ["'True'", "'False'", "'if'", "'else'", "'for'", "'while'", "'print'", "'input'", "'int'",
                 "'real'", "'String'", "'boolean'", "'main'", "'return'", "'break'", "'const'"]
 
     def numeric_type(self, vtype):  # função que verifica se é um tipo numério
         return (vtype == 'int') or (vtype == 'real')
 
-    def active_function(self):
+    def _active_function(self):
         return 'function' in self.stack
 
     # Enter a parse tree produced by projetoFinalParser#prog.
@@ -24,7 +36,17 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#prog.
     def exitProg(self, ctx: trabalhoFinalParser.ProgContext):
+        print("Tabela de símbolos")
         print(self.symbolTable)
+        print(self.f_args)
+
+    # Enter a parse tree produced by trabalhoFinalParser#decVarConst.
+    def enterDecVarConst(self, ctx: trabalhoFinalParser.DecVarConstContext):
+        pass
+
+    # Exit a parse tree produced by trabalhoFinalParser#decVarConst.
+    def exitDecVarConst(self, ctx: trabalhoFinalParser.DecVarConstContext):
+        pass
 
     # Enter a parse tree produced by trabalhoFinalParser#decConst.
     def enterDecConst(self, ctx: trabalhoFinalParser.DecConstContext):
@@ -32,41 +54,51 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#decConst.
     def exitDecConst(self, ctx: trabalhoFinalParser.DecConstContext):
+        flag = 0
         variaveis = ctx.listaAtrib().listaids
         tipos = ctx.listaAtrib().listatipos
 
-        for var in variaveis:
-            self.symbolTable[(var, 0)][0] = ctx.tipo().getText()
-            if self.symbolTable[(var, 0)][1] in self.reserved:
-                print("Reserverd error.")
-
         for i in range(len(variaveis)):
             if ctx.tipo().getText() != tipos[i]:
-                print("Erro: O tipo da variável não é compatível com o seu valor.")
+                flag = 1
+                raise UnexpectedTypeError(ctx.start.line, ctx.tipo().getText(), tipos[i])
 
-        for var in variaveis:
+        if flag == 0:
+            for var in variaveis:
+                self.symbolTable[var][0] = ctx.tipo().getText()
+
+        for var in variaveis:  # atualiza a tabela de símbolos para armazenar valores realmente inteiros e floats
             if ctx.tipo().getText() == 'int':
-                self.symbolTable[(var, 0)][1] = int(self.symbolTable[(var, 0)][1])
+                self.symbolTable[var][1] = int(self.symbolTable[var][1])
             elif ctx.tipo().getText() == 'real':
-                self.symbolTable[(var, 0)][1] = float(self.symbolTable[(var, 0)][1])
+                self.symbolTable[var][1] = float(self.symbolTable[var][1])
 
     # Enter a parse tree produced by trabalhoFinalParser#decVar.
     def enterDecVar(self, ctx: trabalhoFinalParser.DecVarContext):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#decVar.
+        # Exit a parse tree produced by trabalhoFinalParser#decVar.
+
     def exitDecVar(self, ctx: trabalhoFinalParser.DecVarContext):
         variaveis = ctx.listaIds().lista
 
         # valor padrão das variáveis
         for var in variaveis:
-            self.symbolTable[(var, 0)][0] = ctx.tipo().getText()
+            self.symbolTable[var][0] = ctx.tipo().getText()
             if ctx.tipo().getText() == 'String':
-                self.symbolTable[(var, 0)][1] = "''"
+                self.symbolTable[var][1] = "''"
             elif self.numeric_type(ctx.tipo().getText()):
-                self.symbolTable[(var, 0)][1] = 0
+                self.symbolTable[var][1] = 0
             elif ctx.tipo().getText() == 'boolean':
                 self.symbolTable[var][1] = 'False'
+
+    # Enter a parse tree produced by trabalhoFinalParser#tipo.
+    def enterTipo(self, ctx: trabalhoFinalParser.TipoContext):
+        pass
+
+    # Exit a parse tree produced by trabalhoFinalParser#tipo.
+    def exitTipo(self, ctx: trabalhoFinalParser.TipoContext):
+        pass
 
     # Enter a parse tree produced by trabalhoFinalParser#listaIds.
     def enterListaIds(self, ctx: trabalhoFinalParser.ListaIdsContext):
@@ -77,12 +109,17 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
         ids = []
         for token in ctx.ID():
             if token.getText() in self.reserved:
-                print("Erro: palavra reservada não pode ser usada como nome de variável.")
-            if (token.getText(), 0) in self.symbolTable:
-                print('Erro: variável com mesmo nome já declarada.')
-            ids.append(token.getText())
+                raise ReservedError(ctx.start.line, token.getText())
+
+            elif token.getText().lower() in self.symbolTable:
+                raise AlreadyDeclaredError(ctx.start.line, token.getText())
+
+            else:
+                ids.append(token.getText().lower())
+
         for i in range(len(ids)):
-            self.symbolTable[(ctx.ID(i).getText(), 0)] = [None, None]
+            self.symbolTable[ctx.ID(i).getText().lower()] = [None, None]
+
         ctx.lista = ids
 
     # Enter a parse tree produced by trabalhoFinalParser#listaAtrib.
@@ -94,17 +131,24 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
         valores = []
         tipos = []
         ids = []
+
         for valor in ctx.valor():
-            valores.append(valor.getText())  # lista de valores
-            tipos.append(valor.type)  # lista de tipos
+            valores.append(valor.getText())  # preenche a lista de valores
+            tipos.append(valor.type)  # preenche a lista de tipos
+
         for token in ctx.ID():
-            if (token.getText(), 0) in self.symbolTable:
-                print('Erro: variável com mesmo nome já declarada.')
-            if (token.getText(), 0) in self.reserved:
-                print('Erro: palavra reservada não pode ser usada como nome de variável.')
-            ids.append(token.getText())
+            if token.getText().lower() in self.symbolTable:
+                raise AlreadyDeclaredError(ctx.start.line, token.getText())
+
+            elif token.getText() in self.reserved:
+                raise ReservedError(ctx.start.line, token.getText())
+
+            else:
+                ids.append(token.getText().lower())
+
         for i in range(len(ids)):
-            self.symbolTable[(ctx.ID(i).getText(), 0)] = [None, valores[i]]
+            self.symbolTable[ctx.ID(i).getText().lower()] = [None, valores[i]]
+
         ctx.listaids = ids
         ctx.listatipos = tipos
 
@@ -128,7 +172,7 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
     def exitValorReal(self, ctx: trabalhoFinalParser.ValorRealContext):
         ctx.type = 'real'
         if '-' in ctx.getText():
-            ctx.val = - float(ctx.REAL().getText())
+            ctx.val = - float(ctx.REAL().getText())  # número real negativo
         else:
             ctx.val = float(ctx.REAL().getText())
 
@@ -150,13 +194,83 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
         ctx.type = 'boolean'
         ctx.val = ctx.BOOL().getText()
 
-    # Enter a parse tree produced by trabalhoFinalParser#decFunc.
-    def enterDecFunc(self, ctx: trabalhoFinalParser.DecFuncContext):
+    # Enter a parse tree produced by trabalhoFinalParser#Func_Type.
+    def enterFunc_Type(self, ctx: trabalhoFinalParser.Func_TypeContext):
+
+        self.stack.append('function')  # adiciona na pilha de execução
+        func_id = ctx.ID().getText()
+        self.active_function.append(func_id)  # adiciona na lista de função ativa
+
+        # add a função na tabela de símboloos
+        if func_id in self.symbolTable:
+            raise AlreadyDeclaredFunctionError(ctx.start.line, func_id)
+        else:
+            if ctx.tipoFun().getText() != '':
+                self.symbolTable[func_id] = [ctx.tipoFun().getText(), None]
+            else:
+                self.symbolTable[func_id] = [None, None]  # caso a função não tenha tipo
+
+        tipos = []
+        stream = ctx.listaParams().getText()
+        splitstream = stream.split(",")
+        for token in splitstream:
+            if 'int' in token:
+                tipos.append('int')
+            elif 'real' in token:
+                tipos.append('real')
+            elif 'boolean' in token:
+                tipos.append('boolean')
+            elif 'String' in token:
+                tipos.append('String')
+
+        self.f_args[func_id] = tipos
+
+    # Exit a parse tree produced by trabalhoFinalParser#Func_Type.
+    def exitFunc_Type(self, ctx: trabalhoFinalParser.Func_TypeContext):
+        self.stack.pop()  # retira da pilha de execução
+        self.active_function.pop()  # retira da lista de função ativa
+        print(self.symbolTableLocal)
+        self.symbolTableLocal.clear()   # limpa o dicionário ao sair da função
+
+    # Enter a parse tree produced by trabalhoFinalParser#decVarLocal.
+    def enterDecVarLocal(self, ctx: trabalhoFinalParser.DecVarLocalContext):
         pass
 
-    # Exit a parse tree produced by trabalhoFinalParser#decFunc.
-    def exitDecFunc(self, ctx: trabalhoFinalParser.DecFuncContext):
+    # Exit a parse tree produced by trabalhoFinalParser#decVarLocal.
+    def exitDecVarLocal(self, ctx: trabalhoFinalParser.DecVarLocalContext):
+        variaveis = ctx.listaIdsLocal().lista
+
+        # valor padrão das variáveis
+        for var in variaveis:
+            self.symbolTableLocal[var][0] = ctx.tipo().getText()
+            if ctx.tipo().getText() == 'String':
+                self.symbolTableLocal[var][1] = "''"
+            elif self.numeric_type(ctx.tipo().getText()):
+                self.symbolTableLocal[var][1] = 0
+            elif ctx.tipo().getText() == 'boolean':
+                self.symbolTableLocal[var][1] = 'False'
+
+    # Enter a parse tree produced by trabalhoFinalParser#listaIdsLocal.
+    def enterListaIdsLocal(self, ctx: trabalhoFinalParser.ListaIdsLocalContext):
         pass
+
+    # Exit a parse tree produced by trabalhoFinalParser#listaIdsLocal.
+    def exitListaIdsLocal(self, ctx: trabalhoFinalParser.ListaIdsLocalContext):
+        ids = []
+        for token in ctx.ID():
+            if token.getText() in self.reserved:
+                raise ReservedError(ctx.start.line, token.getText())
+
+            elif token.getText().lower() in self.symbolTableLocal:
+                raise AlreadyDeclaredError(ctx.start.line, token.getText())
+
+            else:
+                ids.append(token.getText().lower())
+
+        for i in range(len(ids)):
+            self.symbolTableLocal[ctx.ID(i).getText().lower()] = [None, None]
+
+        ctx.lista = ids
 
     # Enter a parse tree produced by trabalhoFinalParser#tipoFun.
     def enterTipoFun(self, ctx: trabalhoFinalParser.TipoFunContext):
@@ -172,7 +286,31 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Exit a parse tree produced by trabalhoFinalParser#listaParams.
     def exitListaParams(self, ctx: trabalhoFinalParser.ListaParamsContext):
-        pass
+        ids = []
+        types = []
+
+        for token in ctx.tipo():
+            types.append(token.getText())
+
+        for token in ctx.ID():
+            if token.getText() in self.symbolTableLocal:
+                raise AlreadyDeclaredError(ctx.start.line, token.getText())
+
+            elif token.getText() in self.reserved:
+                raise ReservedError(ctx.start.line, token.getText())
+            else:
+                ids.append(token.getText())
+
+        for i in range(len(ids)):
+            self.symbolTableLocal[ctx.ID(i).getText()] = [types[i], None]
+
+        for var in ids:
+            if self.symbolTableLocal[var][0] == 'String':
+                self.symbolTableLocal[var][1] = "''"
+            elif self.numeric_type(self.symbolTableLocal[var][0]):
+                self.symbolTableLocal[var][1] = 0
+            elif self.symbolTableLocal[var][0] == 'boolean':
+                self.symbolTableLocal[var][1] = 'False'
 
     # Enter a parse tree produced by trabalhoFinalParser#main.
     def enterMain(self, ctx: trabalhoFinalParser.MainContext):
@@ -200,11 +338,24 @@ class trabalhoFinalMyListener(trabalhoFinalListener):
 
     # Enter a parse tree produced by trabalhoFinalParser#callF.
     def enterCallF(self, ctx: trabalhoFinalParser.CallFContext):
-        pass
+        id_name = ctx.ID().getText()
+        if id_name not in self.symbolTable:     # testa se o identificar da função não está na tabela de símbolos
+            raise UndeclaredFunction(ctx.start.line, id_name)
+        else:
+            pass
 
     # Exit a parse tree produced by trabalhoFinalParser#callF.
     def exitCallF(self, ctx: trabalhoFinalParser.CallFContext):
-        pass
+        fun_id = ctx.ID().getText()
+        if len(self.f_args[fun_id]) != len(ctx.expr()):  # testa se o número de argumentos passados é diferente do número de parâmetros formais
+            raise MissingArguments(ctx.start.line, len(self.f_args[fun_id]), len(ctx.expr()))
+        else:
+            for esperado, recebido in list(zip(self.f_args[fun_id], ctx.expr())):   # testa se os tipos dos parâmetros formais correspondem aos valores recebidos por argumento
+                if esperado != recebido.type:
+                    raise UnexpectedArgumentTypeError(ctx.start.line, esperado, recebido.type)
+                else:
+                    ctx.type = self.symbolTable[ctx.ID().getText()][0]  # tipo da função
+                    ctx.val = self.symbolTable[ctx.ID().getText()][1]   # valor retornado pela função
 
     # Enter a parse tree produced by trabalhoFinalParser#Expr_Arit.
     def enterExpr_Arit(self, ctx: trabalhoFinalParser.Expr_AritContext):
