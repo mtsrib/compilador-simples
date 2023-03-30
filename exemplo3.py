@@ -9,13 +9,13 @@ return 1;
 }
 }
 mostrarMedia (int v1, int v2, real x){
-x = (v1+v2)/2;
+x = (v1+v2)/2.0;
 print ("Resultado: ", x);
 }
 real media (real n1, real n2)
 {
 real m;
-m = (n1 + n2)/2;
+m = (n1 + n2)/2.0;
 return m;
 }
 main(){

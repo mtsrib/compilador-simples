@@ -28,7 +28,7 @@ main(){
         print("Mes invalido");
         input(mes);
         if (mes <= 12){
-            print("mes valido");
+            print("Mes valido");
         }
     }
 }

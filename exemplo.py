@@ -11,6 +11,6 @@ main(){
 
 print ("Programa Media. Digite os valores?");
 input(n1, n2);
-print(mostrarMedia(n1, n2, m));
+mostrarMedia(2, 6, m);
 }
 
